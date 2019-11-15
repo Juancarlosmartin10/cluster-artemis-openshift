@@ -1,0 +1,36 @@
+version: '2'
+services:
+  broker-master:
+    image: juancar1994/artemis-master-victrix
+    container_name: broker-master
+    volumes:
+      - /data/artemis:/var/lib/artemisbroker/data
+    ports:
+      - 61616:61616
+      - 61613:61613
+      - 8161:8161
+    restart: always        
+    networks:
+      broker-network:
+        ipv4_address: "172.22.0.2"
+  broker-slave:
+    image: juancar1994/artemis-slave-victrix
+    container_name: broker-slave
+    volumes:
+      - /data/artemis:/var/lib/artemisbroker/data
+    ports:
+      - 61617:61617
+      - 8171:8161
+      - 61614:61613
+    restart: always
+    networks:
+      broker-network:
+        ipv4_address: "172.22.0.3"
+
+networks:
+  broker-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
+          gateway: 172.22.0.1
