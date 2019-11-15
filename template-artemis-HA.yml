@@ -1,0 +1,230 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: artemis-template-ha
+  annotations:
+    description: "Crate a master/slave Artemis"
+    tags: "messages"
+objects:
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: artemis-ha-data-1
+  spec:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 2Gi
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: artemis-ha-data-2
+  spec:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 2Gi
+
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+   annotations:
+     template.alpha.openshift.io/wait-for-ready: 'true'
+   name: artemis-master-config
+  spec:
+    template:
+      metadata: 
+        labels:
+          cluster: artemis-master
+      spec:
+        containers:
+        - name: artemis-master
+          image: smartinezp/master-artemis-openshift:2.10.0
+          env: 
+          - name: RESTORE_CONFIGURATION
+            value: "true"
+          - name: MASTER_IP
+            value: ${MASTER_IP} 
+          - name: SLAVE_IP
+            value: ${SLAVE_IP}             
+          ports:
+          - containerPort: 61617
+            protocol: TCP
+          - containerPort: 61616
+            protocol: TCP
+          - containerPort: 1883
+            protocol: TCP
+          - containerPort: 5445
+            protocol: TCP
+          - containerPort: 5672
+            protocol: TCP
+          - containerPort: 8161
+            protocol: TCP
+          - containerPort: 9404
+            protocol: TCP
+          - containerPort: 61613
+            protocol: TCP            
+          volumeMounts:
+          - mountPath: "/var/lib/artemisBroker/data"
+            name: data-artemis-1
+        securityContext:
+          runAsUser: 0
+        volumes:
+        - name: data-artemis-1
+          persistentVolumeClaim:
+            claimName: artemis-ha-data-1
+    replicas: 1
+    selector:
+      cluster: artemis-master
+
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+   annotations:
+     template.alpha.openshift.io/wait-for-ready: 'true'
+   name: artemis-slave-config
+  spec:
+    template:
+      metadata: 
+        labels:
+          cluster: artemis-slave
+      spec:
+        containers:
+        - name: artemis-slave
+          image: smartinezp/slave-artemis-openshift:2.10.0
+          env: 
+          - name: RESTORE_CONFIGURATION
+            value: "true"
+          - name: MASTER_IP
+            value: ${MASTER_IP} 
+          - name: SLAVE_IP
+            value: ${SLAVE_IP}             
+          ports:
+          - containerPort: 61617
+            protocol: TCP
+          - containerPort: 61616
+            protocol: TCP
+          - containerPort: 1883
+            protocol: TCP
+          - containerPort: 5445
+            protocol: TCP
+          - containerPort: 5672
+            protocol: TCP
+          - containerPort: 8161
+            protocol: TCP
+          - containerPort: 9404
+            protocol: TCP
+          - containerPort: 9404
+            protocol: TCP            
+          volumeMounts:
+          - mountPath: "/var/lib/artemisBroker/data"
+            name: data-artemis-2
+        securityContext:
+          runAsUser: 0
+        volumes:
+        - name: data-artemis-2
+          persistentVolumeClaim:
+            claimName: artemis-ha-data-2
+    replicas: 1
+    selector:
+      cluster: artemis-slave
+    
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: artemis-service-access-master
+    labels:
+        cluster: artemis-master
+  spec:
+    clusterIP: ${MASTER_IP}
+    ports:
+      - name: 61617-tcp
+        port: 61617
+        targetPort: 61617
+        protocol: TCP
+      - name: 61616-tcp
+        port: 61616
+        targetPort: 61616
+        protocol: TCP
+      - name: 1883-tcp
+        port: 1883
+        protocol: TCP
+        targetPort: 1883
+      - name: 5445-tcp
+        port: 5445
+        protocol: TCP
+        targetPort: 5445
+      - name: 5672-tcp
+        port: 5672
+        protocol: TCP
+        targetPort: 5672
+      - name: 8161-tcp
+        port: 8161
+        protocol: TCP
+        targetPort: 8161
+      - name: 9404-tcp
+        port: 9404
+        protocol: TCP
+        targetPort: 9404
+      - name: 61613-tcp
+        port: 61613
+        protocol: TCP
+        targetPort: 61613        
+    selector:
+      cluster: artemis-master
+      
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: artemis-service-access-slave
+    labels:
+        cluster: artemis-slave
+  spec:
+    clusterIP: ${SLAVE_IP}
+    ports:
+      - name: 61617-tcp
+        port: 61617
+        targetPort: 61617
+        protocol: TCP
+      - name: 61616-tcp
+        port: 61616
+        targetPort: 61616
+        protocol: TCP
+      - name: 1883-tcp
+        port: 1883
+        protocol: TCP
+        targetPort: 1883
+      - name: 5445-tcp
+        port: 5445
+        protocol: TCP
+        targetPort: 5445
+      - name: 5672-tcp
+        port: 5672
+        protocol: TCP
+        targetPort: 5672
+      - name: 8161-tcp
+        port: 8161
+        protocol: TCP
+        targetPort: 8161
+      - name: 9404-tcp
+        port: 9404
+        protocol: TCP
+        targetPort: 9404
+      - name: 61613-tcp
+        port: 61613
+        protocol: TCP
+        targetPort: 61613        
+    selector:
+      cluster: artemis-slave
+      
+parameters:
+  - name: MASTER_IP
+    description: "Ip del broker master"
+    displayName: ip-master
+    requiered: true
+  - name: SLAVE_IP
+    description: "Ip del broker slave"
+    displayName: ip-slave
+    requiered: true
